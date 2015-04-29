@@ -1,3 +1,6 @@
+import logging
+logger = logging.getLogger("sigcomm09.contact")
+
 
 class Contact:
   def __init__(self, contact_record):
@@ -15,7 +18,7 @@ class Contact:
       return self.time - another_contact.time
 
   def summary(self):
-    print("  Time {0}".format(self.time))
+    logger.debug("  Time {0}".format(self.time))
 
   def __lt__(self, other):
     return self.time < other.time
@@ -42,17 +45,60 @@ class ContactsWithUniqueNode:
     self.contacts.append(record)
 
 
+  def get_contact_events(self, timeout):
+    # If u only contacted v once, then create only one contact event.
+    if len(self.contacts) == 1:
+      return [
+        ContactEvent(
+          u=self.u, v=self.v, is_up=True, time=self.contacts[0].time
+        ),
+        ContactEvent(
+          u=self.u, v=self.v, is_up=False, time=self.contacts[0].time+120
+        )
+      ]
+
+    else:
+      # Consecutive contacts that are within the specified timeout of each
+      #  other are considered part of the same contact duration. Thus count
+      #  them all up.
+      previous_contact_event = self.contacts[0]
+      contact_events = [ContactEvent(
+        u=self.u, v=self.v, is_up=True, time=previous_contact_event.time
+      )]
+      for d, contact in self.get_next_time_delta(include_contact=True):
+        if d > timeout:
+          contact_events.append(ContactEvent(
+            u=self.u, v=self.v, is_up=False, time=previous_contact_event.time+120
+          ))
+          contact_events.append(ContactEvent(
+            u=self.u, v=self.v, is_up=True, time=contact.time
+          ))
+        previous_contact_event = contact
+      return contact_events
+
+
   def summary(self):
-    print("  {0} => {1}".format(self.u, self.v))
-    print("  {0} contact instances recorded".format(len(self.contacts)))
+    logger.debug("  {0} => {1}".format(self.u, self.v))
+    logger.debug("  {0} contact instances recorded".format(len(self.contacts)))
     if not self.is_sorted:
+      logger.debug("  Sorting by contact times...")
       self.contacts.sort(key=SORT_BY_TIMESTAMP)
       self.is_sorted = True
 
     self.contacts[0].summary()
     for delta, next_contact in self.get_next_time_delta(True):
-      print("    {0} seconds apart".format(delta))
+      logger.debug("    {0} seconds apart".format(delta))
       next_contact.summary()
+
+
+  def get_next_time_delta(self, include_contact=False):
+    iterator = range(0, len(self.contacts)-1)
+    for i in iterator:
+      next_contact = self.contacts[i+1]
+      if include_contact:
+        yield self.contacts[i].time_delta(next_contact), next_contact
+      else:
+        yield self.contacts[i].time_delta(next_contact)
 
 
   def draw(self):
@@ -80,44 +126,26 @@ class ContactsWithUniqueNode:
     pyplot.close(fig)
 
 
-  def get_next_time_delta(self, include_contact=False):
-    iterator = range(0, len(self.contacts)-1)
-    for i in iterator:
-      next_contact = self.contacts[i+1]
-      if include_contact:
-        yield self.contacts[i].time_delta(next_contact), next_contact
-      else:
-        yield self.contacts[i].time_delta(next_contact)
+class ContactEvent:
+  MIN_TIME = float("inf")
+  MAX_TIME = float("-inf")
 
+  def __init__(self, u, v, is_up, time):
+    self.u = u
+    self.v = v
+    self.is_up = is_up
+    self.time = time
+    if ContactEvent.MIN_TIME > time:
+      ContactEvent.MIN_TIME = time
+    if ContactEvent.MAX_TIME < time:
+      ContactEvent.MAX_TIME = time
 
-  def get_contact_events(self):
-    # If u only contacted v once, then create only one contact event.
-    if len(self.contacts) == 1:
-      return [
-        ContactEvent(
-          u=self.u, v=self.v, is_up=True, time=self.contacts[0].time
-        ),
-        ContactEvent(
-          u=self.u, v=self.v, is_up=False, time=self.contacts[0].time+120
-        )
-      ]
-
-    else:
-      # Consecutive contacts that are within 180 seconds of each other are
-      #  considered part of the same contact duration. Thus count them all up.
-      previous_contact_event = self.contacts[0]
-      contact_events = [ContactEvent(
-        u=self.u, v=self.v, is_up=True, time=previous_contact_event.time
-      )]
-      for d, contact in self.get_next_time_delta(include_contact=True):
-        if d > 180:
-          contact_events.append(ContactEvent(
-            u=self.u, v=self.v, is_up=False, time=previous_contact_event.time+120
-          ))
-          contact_events.append(ContactEvent(
-            u=self.u, v=self.v, is_up=True, time=contact.time
-          ))
-        previous_contact_event = contact
-      return contact_events
+  def __str__(self):
+    return "{time} CONN {u} {v} {up_or_down}".format(
+      u=self.u,
+      v=self.v,
+      time=(self.time-ContactEvent.MIN_TIME),
+      up_or_down="up" if self.is_up else "down"
+    )
 
 
