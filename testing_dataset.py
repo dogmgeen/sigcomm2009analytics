@@ -20,6 +20,7 @@ from input import proximity
 from contact import Contact
 from contact import ContactsWithUniqueNode
 
+SORT_BY_TIMESTAMP = lambda r: r.time
 
 class ContactsWithUniqueNode:
   def __init__(self):
