@@ -43,6 +43,10 @@ nosetests.xml
 coverage.xml
 *,cover
 
+# Other text-related stuff
+*.swp
+*.txt
+
 # Translations
 *.mo
 *.pot
