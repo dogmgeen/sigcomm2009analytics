@@ -7,7 +7,19 @@ import numpy as np
 USE_COLUMNS = (0, 1, 2)
 FILE_DATA_TYPE = np.dtype('u4') 
 
+# Load all records from the specified proximity file
 def load(url):
   return np.loadtxt(
     url, dtype=FILE_DATA_TYPE, delimiter=";", usecols=USE_COLUMNS
   )
+
+
+# Load only proximity records for participating members.
+#  i.e. Remove any row that has a value >100 in the third column.
+def loadParticipants(url):
+  d = load(url)
+  return d[d[:,2] < 100]
+
+
+if __name__ == "__main__":
+  print(loadParticipants("/home/kp/Downloads/sigcomm2009/proximity.csv"))
