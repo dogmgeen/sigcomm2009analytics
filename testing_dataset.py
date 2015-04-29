@@ -16,59 +16,11 @@ import collections
 from matplotlib import pyplot
 import pylab
 import numpy
-
-INPUT_FIELD_NAMES = [
-  "timestamp",
-  "user_id",
-  "seen_user_id",
-  "seen_device_major_class",
-  "seen_device_minor_class",
-]
-
-EXTERNAL_USER_ID = 100
-
-def read_input(input_file_url):
-  with open(input_file_url, 'r') as f:
-    reader = csv.DictReader(f, fieldnames=INPUT_FIELD_NAMES, delimiter=";")
-    output = []
-    # skip over first line
-    next(reader)
-    raw_records = 0
-    included_records = 0
-    for record in reader:
-      # Devices that are actively recording contacts in this simulation have
-      #  user_ids less than 100. Any user ID that is >= 100 is an external
-      #  device that is not actively recording contacts. These records should
-      #  not be included in the output file.
-      raw_records += 1
-      if includes_internal_devices_only(record):
-        # ONE user IDs start at 0, but SIGCOMM 2009 user IDs start at 1. So
-        #  each user ID will be decremented.
-        output.append({
-          "timestamp": int(record['timestamp']),
-          "user_id": int(record['user_id'])-1,
-          "seen_user_id": int(record['seen_user_id'])-1,
-        })
-        included_records += 1
-
-  print("Input file processing completed.")
-  print("{0} raw records in {1}".format(raw_records, input_file_url))
-  print("{0} valid records in {1}".format(included_records, input_file_url))
-  print("")
-  return output
+from input import proximity
+from contact import Contact
+from contact import ContactsWithUniqueNode
 
 
-def includes_internal_devices_only(record):
-  if (
-    int(record["user_id"]) >= EXTERNAL_USER_ID or
-    int(record["seen_user_id"]) >= EXTERNAL_USER_ID
-  ):
-    return False
-
-  else:
-    return True
-
-SORT_BY_TIMESTAMP = lambda r: r.time
 class ContactsWithUniqueNode:
   def __init__(self):
     self.u = None
@@ -188,28 +140,6 @@ class ContactEvent:
     )
 
 
-class Contact:
-  def __init__(self, contact_record):
-    # A node u sees a node v.
-    self.u = contact_record['user_id']
-    self.v = contact_record['seen_user_id']
-    self.time = contact_record['timestamp']
-
-
-  def time_delta(self, another_contact):
-    if self.time < another_contact.time:
-      return another_contact.time - self.time
-
-    else:
-      return self.time - another_contact.time
-
-  def summary(self):
-    print("  Time {0}".format(self.time))
-
-  def __lt__(self, other):
-    return self.time < other.time
-
-
 class Node:
   def __init__(self):
     self.id = None
@@ -217,8 +147,8 @@ class Node:
 
   def add_contact(self, record):
     if self.id is None:
-      self.id = record['user_id']
-    self.contacts[record['seen_user_id']].add_contact(Contact(record))
+      self.id = record[1]
+    self.contacts[record[2]].add_contact(Contact(record))
 
   def summary(self):
     print("-"*40)
@@ -256,7 +186,7 @@ def create_nodes(records):
   #  be present in the dictionary.
   nodes = collections.defaultdict(Node)
   for r in records:
-    nodes[r["user_id"]].add_contact(r)
+    nodes[r[1]].add_contact(r)
 
   print("#"*80)
   print("Created {0} unique nodes".format(len(nodes)))
@@ -318,7 +248,7 @@ def main(args):
     print_usage(script_name=args[0])
 
   input_file = args[1]
-  contact_records = read_input(input_file)
+  contact_records = proximity.loadParticipants(input_file)
   nodes = create_nodes(contact_records)
   node_ids = [n.id for n in nodes]
 
@@ -341,6 +271,7 @@ def main(args):
       f.write("{ending_time} CONN {u} {v} down\n".format(
         u=end[0], v=end[1], ending_time=max_contact_event.time
       ))
+
 
 def write_out_to_file(output, output_file_url):
   with open(output_file_url, "w") as f:

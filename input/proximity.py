@@ -22,4 +22,9 @@ def loadParticipants(url):
 
 
 if __name__ == "__main__":
-  print(loadParticipants("/home/kp/Downloads/sigcomm2009/proximity.csv"))
+  import os
+  records = loadParticipants(
+    os.path.expanduser('~') + "/Downloads/sigcomm2009/proximity.csv"
+  )
+  for r in records:
+    print(r[1])
