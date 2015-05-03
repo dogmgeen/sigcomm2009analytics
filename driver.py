@@ -18,6 +18,8 @@ import os
 import csv
 import collections
 from input import proximity
+from input import interests
+from input import participants
 import node
 import datetime
 
@@ -64,9 +66,9 @@ def get_arguments():
     description='SIGCOMM 2009 Contact Trace Analysis'
   )
   parser.add_argument(
-    '-i', '--input-file',
-    dest="proximity_url",
-    help='path/to/proximity.csv',
+    '-i', '--input-directory',
+    dest="dataset_directory",
+    help='path/to/sigcomm2009/',
     required=True,
   )
 
@@ -85,15 +87,10 @@ def write_out_to_file(output, output_file_url):
       writer.writerow(r)
 
 
-if __name__ == "__main__":
-  print("SIGCOMM 2009 Contact Trace Analysis")
-  print("Written by Doug McGeehan (djmvfb@mst.edu)")
-  print("Released into the Public Domain")  # it's a simple script, after all
-  print("")
-  args = get_arguments()
-
+def proximity2ONEsessions(dataset_directory, outfilename,
+                          contact_timedelta_threshold):
   # Load raw records from file, converting to integer types
-  contact_records = proximity.loadParticipants(args.proximity_url)
+  contact_records = proximity.loadParticipants(dataset_directory)
 
   # Construct the nodes and the unique underlying contact times.  
   nodes = node.createFromRecords(contact_records)
@@ -101,7 +98,9 @@ if __name__ == "__main__":
 
   contact_events = []
   for n in nodes:
-    contact_events.extend(n.get_contact_events(timeout=250))
+    contact_events.extend(n.get_contact_events(
+      timeout=contact_timedelta_threshold
+    ))
   contact_events.sort(key=SORT_BY_TIMESTAMP)
 
   logger.info("Duration of contacts: {0} ({1} seconds)".format(
@@ -109,6 +108,47 @@ if __name__ == "__main__":
     contact_events[0].MAX_TIME
   ))
 
-  with open('sessions_for_ONE.txt', 'w') as f:
+  with open(outfilename, 'w') as f:
     for c in contact_events:
       f.write("{0}\n".format(c))
+
+
+if __name__ == "__main__":
+  print("SIGCOMM 2009 Contact Trace Analysis")
+  print("Written by Doug McGeehan (djmvfb@mst.edu)")
+  print("Released into the Public Domain")  # it's a simple script, after all
+  print("")
+  args = get_arguments()
+  dataset_directory = args.dataset_directory
+
+  # Create the ExternalEventsReader-compliant file to indicate when connections
+  #  were initiated and when they were dropped.
+  """
+  proximity2ONEsessions(
+    dataset_directory,
+    outfilename="sessions_for_ONE.txt",
+    contact_timedelta_threshold=250
+  )
+  """
+
+  # Create a file containing all interests, merging together interests1,
+  #  interests2, and the affiliation data in participants.
+  
+  # 1. Create an interest-space file enumerating all unique interest keys.
+  user_affiliations = participants.getAffiliationSpace(dataset_directory)
+  user_interests = interests.getTotalInterestSpace(dataset_directory)
+  interest_space = user_affiliations.union(user_interests)
+  logger.info("Complete interest space has {0} interests".format(
+    len(interest_space)
+  ))
+  with open("interestSpace.txt", "w") as f:
+    for i in interest_space:
+      f.write("{0}\n".format(i))
+  
+  # 2. Merge together all interests into one single file.
+  with open("interests.txt", "w") as f:
+    for r in participants.loadMergedAffiliations(dataset_directory):
+      f.write("{0}\n".format(r))
+
+    for r in interests.loadInterests(dataset_directory):
+      f.write("{0}\n".format(r))
