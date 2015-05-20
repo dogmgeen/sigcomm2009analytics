@@ -71,6 +71,14 @@ def get_arguments():
     help='path/to/sigcomm2009/',
     required=True,
   )
+  parser.add_argument(
+    '-n', '--number-users',
+    dest="number_users",
+    help='an integer',
+    default=None,
+    type=int,
+  )
+
 
   args = parser.parse_args()
   return args
@@ -92,17 +100,26 @@ def proximity2ONEsessions(dataset_directory, outfilename,
                           num_participants_to_load=None):
   # Load raw records from file, converting to integer types
   contact_records = proximity.loadParticipants(dataset_directory)
-
-  # Remove records that include users not to be loaded.
-  users = participants.loadSubset(
-    dataset_directory, num_participants_to_load, randomize=True
-  )
-  logger.info("Records before pruning: {0}".format(len(contact_records)))
   records_to_include = []
+
   while not records_to_include:
+    # Remove records that include users not to be loaded.
+    users = proximity.loadSubsetOfParticipants(
+      dataset_directory, num_participants_to_load, randomize=True
+    )
+    username_mapping = {u: i for i, u in zip(range(len(users)), users)}
+    logger.info("Users loaded: {0}".format(users))
+    logger.info("     renamed: {0}".format(username_mapping))
+    logger.info("Records before pruning: {0}".format(len(contact_records)))
+    records_to_include = []
+
     for r in contact_records:
       if r[1] in users and r[2] in users:
-        records_to_include.append(r)
+        records_to_include.append((
+          r[0],
+          username_mapping[r[1]],
+          username_mapping[r[2]]
+        ))
 
   logger.info("Number of records: {0}".format(len(records_to_include)))
   contact_records = records_to_include
@@ -127,6 +144,8 @@ def proximity2ONEsessions(dataset_directory, outfilename,
     for c in contact_events:
       f.write("{0}\n".format(c))
 
+  return username_mapping
+
 
 if __name__ == "__main__":
   print("SIGCOMM 2009 Contact Trace Analysis")
@@ -138,11 +157,14 @@ if __name__ == "__main__":
 
   # Create the ExternalEventsReader-compliant file to indicate when connections
   #  were initiated and when they were dropped.
-  proximity2ONEsessions(
+  if args.number_users:
+    logger.info("Only {0} users will be loaded".format(args.number_users))
+
+  username_mapping = proximity2ONEsessions(
     dataset_directory,
     outfilename="2_sessions_for_ONE.txt",
     contact_timedelta_threshold=250,
-    num_participants_to_load=2
+    num_participants_to_load=args.number_users
   )
 
   # Create a file containing all interests, merging together interests1,
@@ -161,8 +183,12 @@ if __name__ == "__main__":
   
   # 2. Merge together all interests into one single file.
   with open("interests.txt", "w") as f:
-    for r in participants.loadMergedAffiliations(dataset_directory):
+    for r in participants.loadMergedAffiliations(
+      dataset_directory, username_mapping
+    ):
       f.write("{0}\n".format(r))
 
-    for r in interests.loadInterests(dataset_directory):
+    for r in interests.loadInterests(dataset_directory, username_mapping):
       f.write("{0}\n".format(r))
+
+

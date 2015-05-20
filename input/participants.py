@@ -1,6 +1,5 @@
 import numpy as np
 import os
-import random
 
 # Columns of interest for my application are:
 #  0 - User ID
@@ -19,24 +18,6 @@ def load(url):
   )
 
 
-# Create a set of participants of a given size.
-def loadSubset(url, num_participants_to_load, randomize=False):
-  f = os.path.join(url, "participants.csv")
-  d = np.unique(
-    np.loadtxt(
-      f, dtype=np.dtype('u4'), delimiter=";", usecols=(0,),
-    )
-  )
-  if num_participants_to_load is None:
-    return d
-
-  if randomize:
-    return random.sample(d, num_participants_to_load)
-
-  else:
-    return d[:num_participants_to_load]
-
-
 # Identify the key-value space.
 concat_record_elements = lambda r: "{1}{2}".format(*r)
 def getAffiliationSpace(url):
@@ -45,10 +26,17 @@ def getAffiliationSpace(url):
 
 
 # User IDs need to start at 0. Thus, each user ID is offset by -1.
-user_and_concat_record_elements = lambda r: "{0};{1}{2}".format(r[0]-1, r[1], r[2])
-def loadMergedAffiliations(url):
+def loadMergedAffiliations(url, username_mapping):
   d = load(os.path.join(url, "participants.csv"))
-  return map(user_and_concat_record_elements, d)
+  affiliationsFromSelectedUsers = []
+  for r in d:
+    if r[0] in username_mapping.keys():
+      affiliationsFromSelectedUsers.append((
+        username_mapping[r[0]], r[1], r[2]
+      ))
+
+  user_and_concat_record_elements = lambda r: "{0};{1}{2}".format(*r)
+  return map(user_and_concat_record_elements, affiliationsFromSelectedUsers)
 
 
 if __name__ == "__main__":

@@ -34,12 +34,13 @@ def getTotalInterestSpace(dataset_url):
   ))
 
 
-def loadInterests(dataset_url):
+def loadInterests(dataset_url, username_mapping):
   facebook_interests = load(os.path.join(dataset_url, "interests1.csv"))
   evolved_interests = load(os.path.join(dataset_url, "interests2.csv"))
   all_interests = np.concatenate((facebook_interests, evolved_interests))
   for i in all_interests:
-    yield "{0};{1}".format(i[0]-1, i[1])
+    if i[0] in username_mapping:
+      yield "{0};{1}".format(username_mapping[i[0]], i[1])
 
 
 if __name__ == "__main__":

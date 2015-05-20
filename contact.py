@@ -142,8 +142,8 @@ class ContactEvent:
 
   def __str__(self):
     return "{time} CONN {u} {v} {up_or_down}".format(
-      u=self.u-1,
-      v=self.v-1,
+      u=self.u,
+      v=self.v,
       time=(self.time-ContactEvent.MIN_TIME),
       up_or_down="up" if self.is_up else "down"
     )
