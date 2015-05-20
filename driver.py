@@ -88,9 +88,24 @@ def write_out_to_file(output, output_file_url):
 
 
 def proximity2ONEsessions(dataset_directory, outfilename,
-                          contact_timedelta_threshold):
+                          contact_timedelta_threshold,
+                          num_participants_to_load=None):
   # Load raw records from file, converting to integer types
   contact_records = proximity.loadParticipants(dataset_directory)
+
+  # Remove records that include users not to be loaded.
+  users = participants.loadSubset(
+    dataset_directory, num_participants_to_load, randomize=True
+  )
+  logger.info("Records before pruning: {0}".format(len(contact_records)))
+  records_to_include = []
+  while not records_to_include:
+    for r in contact_records:
+      if r[1] in users and r[2] in users:
+        records_to_include.append(r)
+
+  logger.info("Number of records: {0}".format(len(records_to_include)))
+  contact_records = records_to_include
 
   # Construct the nodes and the unique underlying contact times.  
   nodes = node.createFromRecords(contact_records)
@@ -123,13 +138,12 @@ if __name__ == "__main__":
 
   # Create the ExternalEventsReader-compliant file to indicate when connections
   #  were initiated and when they were dropped.
-  """
   proximity2ONEsessions(
     dataset_directory,
-    outfilename="sessions_for_ONE.txt",
-    contact_timedelta_threshold=250
+    outfilename="2_sessions_for_ONE.txt",
+    contact_timedelta_threshold=250,
+    num_participants_to_load=2
   )
-  """
 
   # Create a file containing all interests, merging together interests1,
   #  interests2, and the affiliation data in participants.
